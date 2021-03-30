@@ -79,13 +79,14 @@ ENV LD_LIBRARY_PATH=/usr/local/lib64/:${LD_LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=/miniconda/lib:/${LD_LIBRARY_PATH}
 
 RUN conda install -c conda-forge -y numpy
+
 RUN pip install https://github.com/bioinform/breakseq2/archive/2.2.tar.gz
 RUN pip install pycparser
 RUN pip install asn1crypto
 RUN pip install idna
 RUN pip install ipaddress
 
-RUN pip install dxpy
+# RUN pip install dxpy
 
 WORKDIR /root
 RUN mkdir -p /home/dnanexus/in /home/dnanexus/out
@@ -95,7 +96,7 @@ COPY parliament2.py .
 COPY parliament2.sh .
 COPY svtyper_env.yml .
 
-RUN conda create -y --name svviz_env svviz
+#RUN conda create -y --name svviz_env svviz
 # We have to use a slightly different method for
 # svtyper as it installs software directly from git
 RUN conda env create --name svtyper_env --file svtyper_env.yml
@@ -109,8 +110,13 @@ ENV DYLD_LIBRARY_PATH=/usr/lib/root/lib
 ENV HTSLIB_LIBRARY_DIR=/usr/local/lib
 ENV HTSLIB_INCLUDE_DIR=/usr/local/include
 
+COPY parliament2_test.sh .
+
 WORKDIR /home/dnanexus
 RUN ["chmod", "+x", "parliament2.py"]
 RUN ["chmod", "+x", "parliament2.sh"]
+RUN ["chmod", "+x", "parliament2_test.sh"]
 
-ENTRYPOINT ["python","/home/dnanexus/parliament2.py"]
+#ENTRYPOINT ["python","/home/dnanexus/parliament2.py"]
+# default command
+CMD ["parliament2_test.sh"]
