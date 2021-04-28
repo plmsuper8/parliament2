@@ -110,13 +110,16 @@ ENV DYLD_LIBRARY_PATH=/usr/lib/root/lib
 ENV HTSLIB_LIBRARY_DIR=/usr/local/lib
 ENV HTSLIB_INCLUDE_DIR=/usr/local/include
 
-COPY parliament2_test.sh .
+#parliament2_tibanna.sh need zip
+RUN apt-get install zip unzip 
+
+COPY parliament2_tibanna.sh .
 
 WORKDIR /home/dnanexus
 RUN ["chmod", "+x", "parliament2.py"]
 RUN ["chmod", "+x", "parliament2.sh"]
-RUN ["chmod", "+x", "parliament2_test.sh"]
+RUN ["chmod", "+x", "parliament2_tibanna.sh"]
 
 #ENTRYPOINT ["python","/home/dnanexus/parliament2.py"]
 # default command
-CMD ["parliament2_test.sh"]
+CMD ["parliament2_tibanna.sh"]
