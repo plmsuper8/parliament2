@@ -74,7 +74,7 @@ def main():
                     new_end = str(position)
                     new_start = end
                     tab_split[1] = new_start
-                    tab_split[7].replace("END=%s" % end, "END=%s" % new_end)
+                    tab_split[7] = tab_split[7].replace("END=%s" % end, "END=%s" % new_end)
 
                 # adds "chr"
                 if "chr" not in tab_split[0]:
