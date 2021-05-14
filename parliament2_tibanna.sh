@@ -142,7 +142,7 @@ if [[ "${run_breakseq}" == "True" ]]; then
         --bwa /usr/local/bin/bwa --samtools /usr/local/bin/samtools \
         --bplib_gff "${bplib}" \
         --nthreads "$(nproc)" --bplib_gff "${bplib}" \
-        --sample "${prefix}" 1> /tmp/output/log_files/breakseq_logs/"${prefix}".breakseq.stdout.log 2> /tmp/output/log_files/breakseq_logs/"${prefix}".breakseq.stderr.log &
+        --sample "${sample_name}" 1> /tmp/output/log_files/breakseq_logs/"${prefix}".breakseq.stdout.log 2> /tmp/output/log_files/breakseq_logs/"${prefix}".breakseq.stderr.log &
 fi
 
 # MANTA
@@ -581,5 +581,7 @@ cd /tmp/output
 zip -r result_tmp.zip .
 cd $WRITEABLEDIR
 cp /tmp/output/result_tmp.zip result.zip
+cp /tmp/output/"${prefix}".combined.genotyped.sorted.vcf.gz variants.vcf.gz
+cp /tmp/output/"${prefix}".combined.genotyped.sorted.vcf.gz.tbi variants.vcf.gz.tbi
 
 
