@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 
 illumina_bam=$1 #The name of the Illumina BAM file for which to call structural variants containing mapped reads.
-illumina_bai=$2 #The name of the corresponding index for the Illumina BAM file.
-ref_fasta=$3 #The name of the reference file that matches the reference used to map the Illumina inputs.
-ref_index=$4 #The name of the corresponding index for the reference genome file.
+illumina_bai="${illumina_bam}.bai" #The name of the corresponding index for the Illumina BAM file.
+ref_fasta=$2 #The name of the reference file that matches the reference used to map the Illumina inputs.
+ref_index="${ref_fasta}.fai" #The name of the corresponding index for the reference genome file.
 prefix="result" #(Optional) If provided, all output files will start with this. If absent, the base of the BAM file name will be used. CWL need to be adjusted
-filter_short_contigs=$5 #If selected, SV calls will not be generated on contigs shorter than 1 MB.
-run_breakdancer=$6 #If selected, the program Breakdancer will be one of the SV callers run.
-run_breakseq=$7 #If selected, the program BreakSeq2 will be one of the SV callers run.
-run_manta=$8 #If selected, the program Manta will be one of the SV callers run.
-run_cnvnator=${9} #If selected, the program CNVnator will be one of the SV callers run.
-run_lumpy=${10} #If selected, the program Lumpy will be one of the SV callers run.
-run_delly_deletion=${11} #If selected, the deletion module of the program Delly2  will be one of the SV callers run.
-run_delly_insertion=${12} #If selected, the insertion module of the program Delly2  will be one of the SV callers run.
-run_delly_inversion=${13} #If selected, the inversion module of the program Delly2  will be one of the SV callers run.
-run_delly_duplication=${14} #If selected, the duplication module of the program Delly2  will be one of the SV callers run.
-run_genotype_candidates=${15} #If selected, candidate events determined from the individual callers will be genotyped and merged to create a consensus output.
-sample_name=${16} # Name of the last 'result' column in the final vcf
+filter_short_contigs=$3 #If selected, SV calls will not be generated on contigs shorter than 1 MB.
+run_breakdancer=$4 #If selected, the program Breakdancer will be one of the SV callers run.
+run_breakseq=$5 #If selected, the program BreakSeq2 will be one of the SV callers run.
+run_manta=$6 #If selected, the program Manta will be one of the SV callers run.
+run_cnvnator=${7} #If selected, the program CNVnator will be one of the SV callers run.
+run_lumpy=${8} #If selected, the program Lumpy will be one of the SV callers run.
+run_delly_deletion=${9} #If selected, the deletion module of the program Delly2  will be one of the SV callers run.
+run_delly_insertion=${10} #If selected, the insertion module of the program Delly2  will be one of the SV callers run.
+run_delly_inversion=${11} #If selected, the inversion module of the program Delly2  will be one of the SV callers run.
+run_delly_duplication=${12} #If selected, the duplication module of the program Delly2  will be one of the SV callers run.
+run_genotype_candidates=${13} #If selected, candidate events determined from the individual callers will be genotyped and merged to create a consensus output.
+sample_name=${14} # Name of the last 'result' column in the final vcf
 #min_qual=${17} # Hard filter
 run_svviz="False"
 svviz_only_validated_candidates="False"
@@ -49,12 +49,18 @@ check_threads(){
 }
 
 if [[ ! -f "${illumina_bam}" ]] || [[ ! -f "${ref_fasta}" ]]; then
-    if [[ "${dnanexus}" == "True" ]]; then
-        dx-jobutil-report-error "ERROR: An invalid (nonexistent) input file has been specified."
-    else
-        echo "ERROR: An invalid (nonexistent) input file has been specified."
-        exit 1
-    fi
+    echo "ERROR: An invalid (nonexistent) input file has been specified."
+    exit 1
+fi
+
+if [[ ! -f "${illumina_bai}" ]]; then
+    echo "ERROR: The bam index file is missing"
+    exit 1
+fi
+
+if [[ ! -f "${ref_index}" ]]; then
+    echo "ERROR: The reference fasta file is missing"
+    exit 1
 fi
 
 cp "${ref_fasta}" /tmp/ref.fa
@@ -442,6 +448,7 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
         echo "Running SVTyper on BreakSeq outputs"
         mkdir svtype_breakseq
         if [[ -f breakseq.vcf ]]; then
+            #mv breakseq.vcf "${prefix}".breakseq.svtyped.vcf
             bash /home/dnanexus/parallelize_svtyper.sh breakseq.vcf svtype_breakseq "${prefix}".breakseq.svtyped.vcf input.bam
         else
             echo "No BreakSeq VCF file found. Continuing."
@@ -455,6 +462,7 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
         if [[ -f cnvnator.vcf ]]; then
             python /get_uncalled_cnvnator.py | python /add_ciend.py 1000 > cnvnator.ci.vcf < cnvnator.vcf
             bash /home/dnanexus/parallelize_svtyper.sh cnvnator.vcf svtype_cnvnator "${prefix}".cnvnator.svtyped.vcf input.bam
+            #mv cnvnator.vcf "${prefix}".cnvnator.svtyped.vcf
         else
             echo "No CNVnator VCF file found. Continuing."
         fi
@@ -477,6 +485,32 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
             for item in delly.svtyper*.vcf; do
                 grep -v \# "${item}" >> "${prefix}".delly.svtyped.vcf
             done
+
+            ## Delly results come already genotyped. We could just copy those results, but SVTyper sometimes obtains other GTs
+            # if [[ -f delly.insertion.vcf ]]; then
+            #     mv delly.insertion.vcf "${prefix}".delly.insertion.svtyped.vcf
+            # else
+            #     echo "No delly.insertion.vcf file found. Continuing."
+            # fi
+
+            # if [[ -f delly.deletion.vcf ]]; then
+            #     mv delly.deletion.vcf "${prefix}".delly.deletion.svtyped.vcf
+            # else
+            #     echo "No delly.deletion.vcf file found. Continuing."
+            # fi
+
+            # if [[ -f delly.inversion.vcf ]]; then
+            #     mv delly.inversion.vcf "${prefix}".delly.inversion.svtyped.vcf
+            # else
+            #     echo "No delly.inversion.vcf file found. Continuing."
+            # fi
+
+            # if [[ -f delly.duplication.vcf ]]; then
+            #     mv delly.duplication.vcf "${prefix}".delly.duplication.svtyped.vcf
+            # else
+            #     echo "No delly.duplication.vcf file found. Continuing."
+            # fi
+
 
             ## Merge files and the run SVtype - slower
             # # create header of merged file

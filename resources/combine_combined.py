@@ -96,6 +96,11 @@ def main():
                         # adds SV caller to "support" string if not there already
                         if headers[i] not in support:
                             support += ",%s" % headers[i]
+                    # add caller to variants witout GT
+                    elif "./.:NA:" in tab_split[9+i]:
+                        # adds SV caller to "support" string if not there already
+                        if headers[i] not in support:
+                            support += ",%s" % headers[i]
                 # if caller(s) supports variant, adds this to string at end
                 if len(support) > 0:
                     tab_split[7] += ";CALLERS=%s" % support.lstrip(",")

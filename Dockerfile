@@ -113,12 +113,27 @@ ENV HTSLIB_INCLUDE_DIR=/usr/local/include
 #parliament2_tibanna.sh need zip
 RUN apt-get install zip unzip 
 
+# vcf tools
+RUN git clone https://github.com/vcftools/vcftools.git && \
+    mv vcftools vcftools_tmp && \
+    cd vcftools_tmp && \
+    git checkout 954e607 && \
+    ./autogen.sh && \
+    ./configure && \
+    make && \
+    make install && \
+    cd ..
+
+ENV PERL5LIB=/home/dnanexus/vcftools_tmp/src/perl/
+
 COPY parliament2_tibanna.sh .
+COPY vcf-integrity-check.sh .
 
 WORKDIR /home/dnanexus
 RUN ["chmod", "+x", "parliament2.py"]
 RUN ["chmod", "+x", "parliament2.sh"]
 RUN ["chmod", "+x", "parliament2_tibanna.sh"]
+RUN ["chmod", "+x", "vcf-integrity-check.sh"]
 
 #ENTRYPOINT ["python","/home/dnanexus/parliament2.py"]
 # default command
