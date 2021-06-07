@@ -11,6 +11,8 @@ threads=$(expr $threads \* 4)
 if [[ $input_lines -ge $threads ]]; then
     lines=$(expr $input_lines / $threads)
     split -d -a 5 -l $lines $input $directory
+else
+    split -d -a 5 -l $input_lines $input $directory
 fi
 
 i=0
