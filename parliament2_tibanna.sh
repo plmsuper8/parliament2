@@ -78,7 +78,8 @@ if [[ "${run_breakdancer}" != "True" ]] && [[ "${run_breakseq}" != "True" ]] && 
 fi
 
 if [[ "${ref_index}" == "None" ]]; then
-    samtools faidx ref.fa &
+    echo "FAI file not specified. Exiting"
+    exit 1
 else
     cp "${ref_index}" /tmp/ref.fa.fai
     ln -s /tmp/ref.fa.fai
@@ -127,7 +128,7 @@ wait
 
 echo "Generate contigs"
 
-samtools view -H input.bam | python /getContigs.py "${filter_short_contigs}" > contigs
+samtools view -H input.bam | python /getContigs.py "${filter_short_contigs}" > contigs || exit 1
 
 mkdir -p /tmp/output/log_files/
 
@@ -148,7 +149,7 @@ if [[ "${run_breakseq}" == "True" ]]; then
         --bwa /usr/local/bin/bwa --samtools /usr/local/bin/samtools \
         --bplib_gff "${bplib}" \
         --nthreads "$(nproc)" --bplib_gff "${bplib}" \
-        --sample "${sample_name}" 1> /tmp/output/log_files/breakseq_logs/"${prefix}".breakseq.stdout.log 2> /tmp/output/log_files/breakseq_logs/"${prefix}".breakseq.stderr.log &
+        --sample "${sample_name}" 1> /tmp/output/log_files/breakseq_logs/"${prefix}".breakseq.stdout.log 2> /tmp/output/log_files/breakseq_logs/"${prefix}".breakseq.stderr.log || exit 1 &
 fi
 
 # MANTA
@@ -157,12 +158,13 @@ if [[ "${run_manta}" == "True" ]]; then
     #mkdir -p /home/dnanexus/out/log_files/manta_logs/
     mkdir -p /tmp/output/log_files/manta_logs/
 
-    timeout 6h runManta 1> /tmp/output/log_files/manta_logs/"${prefix}".manta.stdout.log 2> /tmp/output/log_files/manta_logs/"${prefix}".manta.stderr.log &
+    timeout 6h runManta 1> /tmp/output/log_files/manta_logs/"${prefix}".manta.stdout.log 2> /tmp/output/log_files/manta_logs/"${prefix}".manta.stderr.log || exit 1 &
 fi
 
 # PREPARE FOR BREAKDANCER
 if [[ "${run_breakdancer}" == "True" ]]; then
-    timeout 2h /breakdancer/cpp/bam2cfg -o breakdancer.cfg input.bam
+    echo "Prepare Breakdancer"
+    timeout 2h /breakdancer/cpp/bam2cfg -o breakdancer.cfg input.bam || exit 1
 fi
 
 concat_breakdancer_cmd=
@@ -198,7 +200,7 @@ if [[ "${run_cnvnator}" == "True" ]] || [[ "${run_delly}" == "True" ]] || [[ "${
             
             if [[ "${run_breakdancer}" == "True" ]]; then
                 echo "Running Breakdancer for contig ${contig}"
-                timeout 4h /breakdancer/cpp/breakdancer-max breakdancer.cfg input.bam -o "${contig}" > breakdancer-"${count}".ctx 2> /tmp/output/log_files/breakdancer_logs/"${prefix}".breakdancer."${contig}".stderr.log &
+                timeout 4h /breakdancer/cpp/breakdancer-max breakdancer.cfg input.bam -o "${contig}" > breakdancer-"${count}".ctx 2> /tmp/output/log_files/breakdancer_logs/"${prefix}".breakdancer."${contig}".stderr.log || exit 1 &
                 concat_breakdancer_cmd="${concat_breakdancer_cmd} breakdancer-${count}.ctx"
             fi
 
@@ -206,7 +208,7 @@ if [[ "${run_cnvnator}" == "True" ]] || [[ "${run_delly}" == "True" ]] || [[ "${
 
             if [[ "$run_cnvnator" == "True" ]]; then
                 echo "Running CNVnator for contig ${contig}"
-                runCNVnator "${contig}" "${count}" 1> /tmp/output/log_files/cnvnator_logs/"${prefix}".cnvnator."${contig}".stdout.log 2> /tmp/output/log_files/cnvnator_logs/"${prefix}".cnvnator."${contig}".stderr.log &
+                runCNVnator "${contig}" "${count}" 1> /tmp/output/log_files/cnvnator_logs/"${prefix}".cnvnator."${contig}".stdout.log 2> /tmp/output/log_files/cnvnator_logs/"${prefix}".cnvnator."${contig}".stderr.log || exit 1 &
                 concat_cnvnator_cmd="${concat_cnvnator_cmd} output.cnvnator_calls-${count}"
             fi
 
@@ -214,15 +216,17 @@ if [[ "${run_cnvnator}" == "True" ]] || [[ "${run_delly}" == "True" ]] || [[ "${
 
             if [[ "${run_delly}" == "True" ]] || [[ "${run_lumpy}" == "True" ]]; then
                 echo "Running sambamba view"
-                timeout 2h sambamba view -h -f bam -t "$(nproc)" input.bam "${contig}" > chr."${count}".bam 2> /tmp/output/log_files/sambamba_logs/"${prefix}".sambamba."${contig}".stderr.log
+                timeout 2h sambamba view -h -f bam -t "$(nproc)" input.bam "${contig}" > chr."${count}".bam 2> /tmp/output/log_files/sambamba_logs/"${prefix}".sambamba."${contig}".stderr.log || exit 1
                 echo "Running sambamba index"
-                sambamba index -t "$(nproc)" chr."${count}".bam 1> /tmp/output/log_files/sambamba_logs/"${prefix}".sambamba."${contig}".stdout.log 2> /tmp/output/log_files/sambamba_logs/"${prefix}".sambamba."${contig}".stderr.log
+                sambamba index -t "$(nproc)" chr."${count}".bam 1> /tmp/output/log_files/sambamba_logs/"${prefix}".sambamba."${contig}".stdout.log 2> /tmp/output/log_files/sambamba_logs/"${prefix}".sambamba."${contig}".stderr.log || exit 1
                 
                 check_threads
 
                 if [[ "${run_delly_deletion}" == "True" ]]; then  
                     echo "Running Delly (deletions) for contig $contig"
-                    timeout 6h delly -t DEL -o "${count}".delly.deletion.vcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_deletion_logs/"${prefix}".delly_deletion."${contig}".stdout.log 2> /tmp/output/log_files/delly_deletion_logs/"${prefix}".delly_deletion."${contig}".stderr.log & 
+                    timeout 6h delly -t DEL -o "${count}".delly.deletion.vcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_deletion_logs/"${prefix}".delly_deletion."${contig}".stdout.log 2> /tmp/output/log_files/delly_deletion_logs/"${prefix}".delly_deletion."${contig}".stderr.log || exit 1 & 
+                    #delly_v0_8_7 call -t DEL -o "${count}".delly.deletion.bcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_deletion_logs/"${prefix}".delly_deletion."${contig}".stdout.log 2> /tmp/output/log_files/delly_deletion_logs/"${prefix}".delly_deletion."${contig}".stderr.log || exit 1 & 
+                    #bcftools view "${count}".delly.deletion.bcf > "${count}".delly.deletion.vcf
                     delly_deletion_concat="${delly_deletion_concat} ${count}.delly.deletion.vcf"
                 fi
 
@@ -230,7 +234,9 @@ if [[ "${run_cnvnator}" == "True" ]] || [[ "${run_delly}" == "True" ]] || [[ "${
 
                 if [[ "${run_delly_inversion}" == "True" ]]; then 
                     echo "Running Delly (inversions) for contig $contig"
-                    timeout 6h delly -t INV -o $count.delly.inversion.vcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_inversion_logs/"${prefix}".delly_inversion."${contig}".stdout.log 2> /tmp/output/log_files/delly_inversion_logs/"${prefix}".delly_inversion."${contig}".stderr.log & 
+                    timeout 6h delly -t INV -o $count.delly.inversion.vcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_inversion_logs/"${prefix}".delly_inversion."${contig}".stdout.log 2> /tmp/output/log_files/delly_inversion_logs/"${prefix}".delly_inversion."${contig}".stderr.log || exit 1 & 
+                    #delly_v0_8_7 call -t INV -o "${count}".delly.inversion.bcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_inversion_logs/"${prefix}".delly_inversion."${contig}".stdout.log 2> /tmp/output/log_files/delly_inversion_logs/"${prefix}".delly_inversion."${contig}".stderr.log || exit 1 & 
+                    #bcftools view "${count}".delly.inversion.bcf > "${count}".delly.inversion.vcf
                     delly_inversion_concat="${delly_inversion_concat} ${count}.delly.inversion.vcf"
                 fi
 
@@ -238,7 +244,9 @@ if [[ "${run_cnvnator}" == "True" ]] || [[ "${run_delly}" == "True" ]] || [[ "${
 
                 if [[ "${run_delly_duplication}" == "True" ]]; then 
                     echo "Running Delly (duplications) for contig ${contig}"
-                    timeout 6h delly -t DUP -o "${count}".delly.duplication.vcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_duplication_logs/"${prefix}".delly_duplication.stdout.log 2> /tmp/output/log_files/delly_duplication_logs/"${prefix}".delly_duplication.stderr.log & 
+                    timeout 6h delly -t DUP -o "${count}".delly.duplication.vcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_duplication_logs/"${prefix}".delly_duplication.stdout.log 2> /tmp/output/log_files/delly_duplication_logs/"${prefix}".delly_duplication.stderr.log || exit 1 & 
+                    #delly_v0_8_7 call -t DUP -o "${count}".delly.duplication.bcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_duplication_logs/"${prefix}".delly_duplication."${contig}".stdout.log 2> /tmp/output/log_files/delly_duplication_logs/"${prefix}".delly_duplication."${contig}".stderr.log || exit 1 & 
+                    #bcftools view "${count}".delly.duplication.bcf > "${count}".delly.duplication.vcf
                     delly_duplication_concat="${delly_duplication_concat} ${count}.delly.duplication.vcf"
                 fi
 
@@ -246,7 +254,9 @@ if [[ "${run_cnvnator}" == "True" ]] || [[ "${run_delly}" == "True" ]] || [[ "${
 
                 if [[ "${run_delly_insertion}" == "True" ]]; then 
                     echo "Running Delly (insertions) for contig ${contig}"
-                    timeout 6h delly -t INS -o "${count}".delly.insertion.vcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_insertion_logs/"${prefix}".delly_insertion."${count}".stdout.log 2> /tmp/output/log_files/delly_insertion_logs/"${prefix}".delly_insertion."${count}".stderr.log & 
+                    timeout 6h delly -t INS -o "${count}".delly.insertion.vcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_insertion_logs/"${prefix}".delly_insertion."${count}".stdout.log 2> /tmp/output/log_files/delly_insertion_logs/"${prefix}".delly_insertion."${count}".stderr.log || exit 1 & 
+                    #delly_v0_8_7 call -t INS -o "${count}".delly.insertion.bcf -g ref.fa chr."${count}".bam 1> /tmp/output/log_files/delly_insertion_logs/"${prefix}".delly_insertion."${contig}".stdout.log 2> /tmp/output/log_files/delly_insertion_logs/"${prefix}".delly_insertion."${contig}".stderr.log || exit 1 & 
+                    #bcftools view "${count}".delly.insertion.bcf > "${count}".delly.insertion.vcf
                     delly_insertion_concat="$delly_insertion_concat $count.delly.insertion.vcf"
                 fi
                 
@@ -254,7 +264,7 @@ if [[ "${run_cnvnator}" == "True" ]] || [[ "${run_delly}" == "True" ]] || [[ "${
 
                 if [[ "${run_lumpy}" == "True" ]]; then
                     echo "Running Lumpy for contig ${contig}"
-                    timeout 6h /home/dnanexus/lumpy-sv/bin/lumpyexpress -B chr."${count}".bam -o lumpy."${count}".vcf ${lumpy_exclude_string} -k 1> /tmp/output/log_files/lumpy_logs/"${prefix}".lumpy."${count}".stdout.log 2> /tmp/output/log_files/lumpy_logs/"${prefix}".lumpy."${count}".stderr.log & 
+                    timeout 6h /home/dnanexus/lumpy-sv/bin/lumpyexpress -B chr."${count}".bam -o lumpy."${count}".vcf ${lumpy_exclude_string} -k 1> /tmp/output/log_files/lumpy_logs/"${prefix}".lumpy."${count}".stdout.log 2> /tmp/output/log_files/lumpy_logs/"${prefix}".lumpy."${count}".stderr.log || exit 1 & 
                     lumpy_merge_command="$lumpy_merge_command lumpy.$count.vcf"
                 fi
             fi
@@ -273,13 +283,13 @@ mkdir -p /tmp/output/sv_caller_results/
 (if [[ "${run_lumpy}" == "True" ]]; then
     echo "Convert Lumpy results to VCF format"
     ls -sh *.vcf
-    python /convertHeader.py "${prefix}" "${lumpy_merge_command}" | vcf-sort -c | uniq > lumpy.vcf
+    python /convertHeader.py "${prefix}" "${lumpy_merge_command}" | vcf-sort -c | uniq > lumpy.vcf || exit 1
 
     if [[ -f lumpy.vcf ]]; then
         cp lumpy.vcf /tmp/output/sv_caller_results/"${prefix}".lumpy.vcf
 
-        python /vcf2bedpe.py -i lumpy.vcf -o lumpy.gff
-        python /Lumpy2merge.py lumpy.gff "${prefix}" 1.0
+        python /vcf2bedpe.py -i lumpy.vcf -o lumpy.gff || exit 1
+        python /Lumpy2merge.py lumpy.gff "${prefix}" 1.0 || exit 1
     else
         echo "No outputs of Lumpy found. Continuing."
     fi
@@ -293,7 +303,7 @@ fi) &
         cp manta/results/variants/diploidSV.vcf.gz /tmp/output/sv_caller_results/"${prefix}".manta.diploidSV.vcf.gz
         mv manta/results/variants/diploidSV.vcf.gz .
         gunzip diploidSV.vcf.gz
-        python /Manta2merge.py 1.0 diploidSV.vcf "${prefix}"
+        python /Manta2merge.py 1.0 diploidSV.vcf "${prefix}" || exit 1
 
         cp manta/results/stats/alignmentStatsSummary.txt /tmp/output/sv_caller_results/"${prefix}".manta.alignmentStatsSummary.txt
     fi
@@ -308,9 +318,9 @@ fi) &
     if [[ -f breakdancer.output ]]; then
         cp breakdancer.output /tmp/output/sv_caller_results/"${prefix}".breakdancer.ctx
 
-        python /BreakDancer2Merge.py 1.0 breakdancer.output "${prefix}"
+        python /BreakDancer2Merge.py 1.0 breakdancer.output "${prefix}" || exit 1
 
-        python /convert_breakdancer_vcf.py < breakdancer.output > breakdancer.vcf
+        python /convert_breakdancer_vcf.py < breakdancer.output > breakdancer.vcf || exit 1
         cp breakdancer.vcf /tmp/output/sv_caller_results/"${prefix}".breakdancer.vcf
     else
         echo "No outputs of Breakdancer found. Continuing."
@@ -323,7 +333,7 @@ fi) &
     cat $concat_cnvnator_cmd > cnvnator.output
 
     if [[ -f cnvnator.output ]]; then
-        perl /usr/utils/cnvnator2VCF.pl cnvnator.output > cnvnator.vcf
+        perl /usr/utils/cnvnator2VCF.pl cnvnator.output > cnvnator.vcf || exit 1
 
         cp cnvnator.vcf /tmp/output/sv_caller_results/"${prefix}".cnvnator.vcf
         cp cnvnator.output /tmp/output/sv_caller_results/"${prefix}".cnvnator.output
@@ -362,7 +372,7 @@ fi) &
 
 (if [[ "${run_delly_deletion}" == "True" ]]; then 
     echo "Convert Delly deletion results to VCF format"
-    python /convertHeader.py "${prefix}" "${delly_deletion_concat}" | vcf-sort -c | uniq > delly.deletion.vcf
+    python /convertHeader.py "${prefix}" "${delly_deletion_concat}" | vcf-sort -c | uniq > delly.deletion.vcf || exit 1
 
     if [[ -f delly.deletion.vcf ]]; then
         cp delly.deletion.vcf /tmp/output/sv_caller_results/"${prefix}".delly.deletion.vcf
@@ -373,7 +383,7 @@ fi) &
 
 (if [[ "${run_delly_inversion}" == "True" ]]; then
     echo "Convert Delly inversion results to VCF format"
-    python /convertHeader.py "${prefix}" "${delly_inversion_concat}" | vcf-sort -c | uniq > delly.inversion.vcf
+    python /convertHeader.py "${prefix}" "${delly_inversion_concat}" | vcf-sort -c | uniq > delly.inversion.vcf || exit 1
 
     if [[ -f delly.inversion.vcf ]]; then
         cp delly.inversion.vcf /tmp/output/sv_caller_results/"${prefix}".delly.inversion.vcf
@@ -384,7 +394,7 @@ fi) &
 
 (if [[ "${run_delly_duplication}" == "True" ]]; then
     echo "Convert Delly duplication results to VCF format"
-    python /convertHeader.py "${prefix}" "${delly_duplication_concat}" | vcf-sort -c | uniq > delly.duplication.vcf
+    python /convertHeader.py "${prefix}" "${delly_duplication_concat}" | vcf-sort -c | uniq > delly.duplication.vcf || exit 1
 
     if [[ -f delly.duplication.vcf ]]; then
         cp delly.duplication.vcf /tmp/output/sv_caller_results/"${prefix}".delly.duplication.vcf
@@ -395,7 +405,7 @@ fi) &
 
 (if [[ "${run_delly_insertion}" == "True" ]]; then
     echo "Convert Delly insertion results to VCF format"
-    python /convertHeader.py "${prefix}" "${delly_insertion_concat}" | vcf-sort -c | uniq > delly.insertion.vcf
+    python /convertHeader.py "${prefix}" "${delly_insertion_concat}" | vcf-sort -c | uniq > delly.insertion.vcf || exit 1
 
     if [[ -f delly.insertion.vcf ]]; then
         cp delly.insertion.vcf /tmp/output/sv_caller_results/"${prefix}".delly.insertion.vcf
@@ -429,13 +439,15 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
     echo "Running SVTyper"
     mkdir -p /tmp/output/svtyped_vcfs/
 
+    svtyper_start=`date +%s`
+
     i=0
     # Breakdancer
     if [[ "${run_breakdancer}" == "True" ]]; then
         echo "Running SVTyper on Breakdancer outputs"
         mkdir svtype_breakdancer
         if [[ -f breakdancer.vcf ]]; then
-            bash /home/dnanexus/parallelize_svtyper.sh breakdancer.vcf svtype_breakdancer "${prefix}".breakdancer.svtyped.vcf input.bam
+            bash /home/dnanexus/parallelize_svtyper.sh breakdancer.vcf svtype_breakdancer "${prefix}".breakdancer.svtyped.vcf input.bam 1000 || exit 1
 
             sed -i 's/SAMPLE/breakdancer/g' "${prefix}".breakdancer.svtyped.vcf
         else
@@ -449,7 +461,7 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
         mkdir svtype_breakseq
         if [[ -f breakseq.vcf ]]; then
             #mv breakseq.vcf "${prefix}".breakseq.svtyped.vcf
-            bash /home/dnanexus/parallelize_svtyper.sh breakseq.vcf svtype_breakseq "${prefix}".breakseq.svtyped.vcf input.bam
+            bash /home/dnanexus/parallelize_svtyper.sh breakseq.vcf svtype_breakseq "${prefix}".breakseq.svtyped.vcf input.bam 1000 || exit 1
         else
             echo "No BreakSeq VCF file found. Continuing."
         fi
@@ -461,7 +473,7 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
         mkdir svtype_cnvnator
         if [[ -f cnvnator.vcf ]]; then
             python /get_uncalled_cnvnator.py | python /add_ciend.py 1000 > cnvnator.ci.vcf < cnvnator.vcf
-            bash /home/dnanexus/parallelize_svtyper.sh cnvnator.vcf svtype_cnvnator "${prefix}".cnvnator.svtyped.vcf input.bam
+            bash /home/dnanexus/parallelize_svtyper.sh cnvnator.vcf svtype_cnvnator "${prefix}".cnvnator.svtyped.vcf input.bam 1000 || exit 1
             #mv cnvnator.vcf "${prefix}".cnvnator.svtyped.vcf
         else
             echo "No CNVnator VCF file found. Continuing."
@@ -476,7 +488,7 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
         else
             for item in delly*vcf; do
                 mkdir svtype_delly_"${i}"
-                bash /home/dnanexus/parallelize_svtyper.sh "${item}" svtype_delly_"${i}" delly.svtyper."${i}".vcf input.bam
+                bash /home/dnanexus/parallelize_svtyper.sh "${item}" svtype_delly_"${i}" delly.svtyper."${i}".vcf input.bam 1000 || exit 1
                 i=$((i + 1))
             done
 
@@ -485,32 +497,6 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
             for item in delly.svtyper*.vcf; do
                 grep -v \# "${item}" >> "${prefix}".delly.svtyped.vcf
             done
-
-            ## Delly results come already genotyped. We could just copy those results, but SVTyper sometimes obtains other GTs
-            # if [[ -f delly.insertion.vcf ]]; then
-            #     mv delly.insertion.vcf "${prefix}".delly.insertion.svtyped.vcf
-            # else
-            #     echo "No delly.insertion.vcf file found. Continuing."
-            # fi
-
-            # if [[ -f delly.deletion.vcf ]]; then
-            #     mv delly.deletion.vcf "${prefix}".delly.deletion.svtyped.vcf
-            # else
-            #     echo "No delly.deletion.vcf file found. Continuing."
-            # fi
-
-            # if [[ -f delly.inversion.vcf ]]; then
-            #     mv delly.inversion.vcf "${prefix}".delly.inversion.svtyped.vcf
-            # else
-            #     echo "No delly.inversion.vcf file found. Continuing."
-            # fi
-
-            # if [[ -f delly.duplication.vcf ]]; then
-            #     mv delly.duplication.vcf "${prefix}".delly.duplication.svtyped.vcf
-            # else
-            #     echo "No delly.duplication.vcf file found. Continuing."
-            # fi
-
 
             ## Merge files and the run SVtype - slower
             # # create header of merged file
@@ -541,7 +527,7 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
         echo "Running SVTyper on Lumpy outputs"
         mkdir svtype_lumpy
         if [[ -f lumpy.vcf ]]; then
-            bash /home/dnanexus/parallelize_svtyper.sh lumpy.vcf svtype_lumpy "${prefix}".lumpy.svtyped.vcf input.bam
+            bash /home/dnanexus/parallelize_svtyper.sh lumpy.vcf svtype_lumpy "${prefix}".lumpy.svtyped.vcf input.bam 1000 || exit 1
         else
             echo "No Lumpy VCF file found. Continuing."
         fi
@@ -559,6 +545,10 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
 
     wait
 
+    svtyper_end=`date +%s`
+    svtyper_runtime=$((svtyper_end-svtyper_start))
+    echo "SVTyper runtime: $svtyper_runtime seconds"
+
     # deactivate svtyper
     source deactivate
 
@@ -566,7 +556,7 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
     echo "Preparing inputs for SURVIVOR"
     for item in *svtyped.vcf; do
         echo "Adding ${item} to SURVIVOR inputs"
-        python /adjust_svtyper_genotypes.py "${item}" > adjusted.vcf
+        python /adjust_svtyper_genotypes.py "${item}" > adjusted.vcf || exit 1
         mv adjusted.vcf "${item}"
         echo "${item}" >> survivor_inputs
         echo "DONE"
@@ -579,17 +569,19 @@ if [[ "${run_genotype_candidates}" == "True" ]]; then
 
     # Run SURVIVOR
     echo "Running SURVIVOR"
-    survivor merge survivor_inputs 1000 1 1 0 0 10 survivor.output.vcf
+    survivor merge survivor_inputs 1000 1 1 0 0 10 survivor.output.vcf || exit 1
 
     # Prepare SURVIVOR outputs for upload
-    vcf-sort -c > survivor_sorted.vcf < survivor.output.vcf
+    echo "Sorting SURVIVOR output"
+    vcf-sort -c > survivor_sorted.vcf < survivor.output.vcf || exit 1
     sed -i 's/SAMPLE/breakdancer/g' survivor_sorted.vcf
-    python /combine_combined.py survivor_sorted.vcf "${sample_name}" survivor_inputs /all.phred.txt | python /correct_max_position.py > /tmp/output/"${prefix}".combined.genotyped.vcf
+    echo "Run combine script"
+    python /combine_combined.py survivor_sorted.vcf "${sample_name}" survivor_inputs /all.phred.txt | python /correct_max_position.py > /tmp/output/"${prefix}".combined.genotyped.vcf || exit 1
     cp survivor_sorted.vcf /tmp/output/"${prefix}".survivor_sorted.vcf
-
-    cat /tmp/output/"${prefix}".combined.genotyped.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' > "${prefix}".combined.genotyped.sorted.vcf
-    bgzip -c "${prefix}".combined.genotyped.sorted.vcf > "${prefix}".combined.genotyped.sorted.vcf.gz
-    tabix -p vcf "${prefix}".combined.genotyped.sorted.vcf.gz
+    echo "Sorting again"
+    cat /tmp/output/"${prefix}".combined.genotyped.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' > "${prefix}".combined.genotyped.sorted.vcf || exit 1
+    bgzip -c "${prefix}".combined.genotyped.sorted.vcf > "${prefix}".combined.genotyped.sorted.vcf.gz || exit 1
+    tabix -p vcf "${prefix}".combined.genotyped.sorted.vcf.gz || exit 1
 
     #cp "${prefix}".combined.genotyped.sorted.vcf /tmp/output/"${prefix}".combined.genotyped.unfiltered.vcf
     cp "${prefix}".combined.genotyped.sorted.vcf.gz /tmp/output/"${prefix}".combined.genotyped.sorted.vcf.gz

@@ -86,7 +86,7 @@ def main():
                 ref = 0
                 # counts support for het/hom/ref
                 for i in range(len(tab_split[9:])):
-                    if "0/1" in tab_split[9+i] or "1/1" in tab_split[9+i] or "./1" in tab_split[9+i]:
+                    if "0/1" in tab_split[9+i] or "1/1" in tab_split[9+i] or "./1" in tab_split[9+i] or "0/0" in tab_split[9+i]:
                         if "0/1" in tab_split[9+i] or "./1" in tab_split[9+i]:
                             het += 1
                         if "1/1" in tab_split[9+i] or "./1" in tab_split[9+i]:

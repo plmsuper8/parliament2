@@ -3,4 +3,5 @@ channels:
 dependencies:
    - python=2.7
    - pip:
-     - "--editable=git+https://github.com/hall-lab/svtyper.git#egg=svtyper_git"
+     - cytoolz==0.8.2
+     - "--editable=git+https://github.com/dbmi-bgm/svtyper.git#egg=svtyper_git"
