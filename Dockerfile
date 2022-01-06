@@ -55,6 +55,21 @@ RUN apt-get update -y && apt-get upgrade -y && apt-get install -y --force-yes \
     zlib1g-dev
     RUN apt-get update
 
+# update tools (for gtx branch)
+RUN wget https://github.com/arq5x/bedtools2/releases/download/v2.30.0/bedtools.static.binary
+RUN chmod +x bedtools.static.binary
+RUN mv bedtools.static.binary /usr/bin/bedtools
+
+RUN wget https://github.com/dellytools/delly/releases/download/v0.8.7/delly_v0.8.7_linux_x86_64bit
+RUN chmod +x delly_v0.8.7_linux_x86_64bit
+RUN mv delly_v0.8.7_linux_x86_64bit  /home/gtx/bin/delly
+
+RUN wget https://github.com/brentp/smoove/releases/download/v0.2.8/smoove
+RUN chmod +x smoove
+RUN mv smoove /usr/bin/
+
+#Other: BWA 0.7.17-r1188, survivor 1.0.3
+
 RUN conda config --add channels conda-forge
 RUN conda config --add channels bioconda
 RUN conda config --add channels defaults
@@ -74,7 +89,7 @@ RUN cp -a /resources/* / && rm -rf /resources/
 
 ENV LD_LIBRARY_PATH=/usr/lib/root/lib
 ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/:${LD_LIBRARY_PATH}
-ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/home/dnanexus/root/lib
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/home/gtx/root/lib
 ENV LD_LIBRARY_PATH=/usr/local/lib64/:${LD_LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=/miniconda/lib:/${LD_LIBRARY_PATH}
 
@@ -89,9 +104,9 @@ RUN pip install ipaddress
 # RUN pip install dxpy
 
 WORKDIR /root
-RUN mkdir -p /home/dnanexus/in /home/dnanexus/out
+RUN mkdir -p /home/gtx/bin /home/gtx/in /home/gtx/out
 
-WORKDIR /home/dnanexus
+WORKDIR /home/gtx
 COPY parliament2.py .
 COPY parliament2.sh .
 COPY svtyper_env.yml .
@@ -101,11 +116,11 @@ COPY svtyper_env.yml .
 # svtyper as it installs software directly from git
 RUN conda env create --name svtyper_env --file svtyper_env.yml
 
-ENV PATH=${PATH}:/home/dnanexus/
+ENV PATH=${PATH}:/home/gtx/
 ENV PATH=${PATH}:/opt/conda/bin/
 ENV PATH=${PATH}:/usr/bin/
 ENV PYTHONPATH=${PYTHONPATH}:/opt/conda/bin/
-ENV ROOTSYS=/home/dnanexus/root
+ENV ROOTSYS=/home/gtx/root
 ENV DYLD_LIBRARY_PATH=/usr/lib/root/lib
 ENV HTSLIB_LIBRARY_DIR=/usr/local/lib
 ENV HTSLIB_INCLUDE_DIR=/usr/local/include
@@ -124,17 +139,17 @@ RUN git clone https://github.com/vcftools/vcftools.git && \
     make install && \
     cd ..
 
-ENV PERL5LIB=/home/dnanexus/vcftools_tmp/src/perl/
+#ENV PERL5LIB=/home/dnanexus/vcftools_tmp/src/perl/
 
-COPY parliament2_tibanna.sh .
-COPY vcf-integrity-check.sh .
+#COPY parliament2_tibanna.sh .
+#COPY vcf-integrity-check.sh .
+COPY gt-sv.sh .
+COPY gt-sv.py .
 
-WORKDIR /home/dnanexus
+WORKDIR /home/gtx
 RUN ["chmod", "+x", "parliament2.py"]
 RUN ["chmod", "+x", "parliament2.sh"]
-RUN ["chmod", "+x", "parliament2_tibanna.sh"]
+RUN ["chmod", "+x", "gt-sv.sh"]
 RUN ["chmod", "+x", "vcf-integrity-check.sh"]
 
-#ENTRYPOINT ["python","/home/dnanexus/parliament2.py"]
-# default command
-CMD ["parliament2_tibanna.sh"]
+ENTRYPOINT ["python","/home/gtx/gt-sv.py"]
